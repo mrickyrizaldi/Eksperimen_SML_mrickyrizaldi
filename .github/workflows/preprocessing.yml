@@ -1,0 +1,66 @@
+name: Preprocessing Automation
+
+# Trigger hanya ketika ada perubahan atau run manual
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'dataset_raw/**'
+      - 'preprocessing/automate_mrickyrizaldi.py'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'dataset_raw/**'
+      - 'preprocessing/automate_mrickyrizaldi.py'
+  workflow_dispatch:
+
+# Akses untuk melakukan git commit & push
+permissions:
+  contents: write
+
+jobs:
+  preprocessing:
+    runs-on: ubuntu-latest 
+
+    steps:
+    # Clone seluruh repository
+    - uses: actions/checkout@v4
+
+    # Setup Python
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.12.7'
+
+    # Install dependency Python yang diperlukan
+    - name: Install Dependencies
+      run: |
+        pip install -U pip  # upgrade pip dulu
+        pip install pandas numpy scikit-learn joblib
+
+    # Jalankan skrip Python untuk preprocessing otomatis
+    - name: Run Preprocessing Script
+      run: |
+        python preprocessing/automate_mrickyrizaldi.py
+
+    # Upload folder hasil preprocessing (preprocessed_data_auto_*) sebagai artifact
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: processed-dataset  # nama file artifact-nya
+        path: preprocessing/preprocessed_data_auto_*/  # folder hasil yang akan diupload
+
+    # Commit folder hasil preprocessing ke repository
+    - name: Commit Preprocessed Folder
+      run: |
+        # Konfigurasi Git agar bisa commit otomatis
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+
+        OUTPUT_FOLDER=$(find preprocessing -maxdepth 1 -type d -name "preprocessed_data_auto_*" | sort | tail -n 1)
+
+        # Tambahkan dan commit folder
+        git add "$OUTPUT_FOLDER"
+        git commit -m "Auto: Update preprocessing result ($(date -u '+%Y-%m-%d %H:%M UTC'))" || true
+        git push origin HEAD:${{ github.ref_name }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Token default GitHub untuk push
